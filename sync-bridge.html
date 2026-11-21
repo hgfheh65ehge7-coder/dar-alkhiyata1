@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="utf-8">
+  <title>Dar Al-Khiyata Data Sync Bridge</title>
+</head>
+<body>
+<script>
+(function() {
+  // Broadcast readiness to parent window (Admin on port 5174)
+  try {
+    if (window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: 'DAR_BRIDGE_READY' }, '*');
+    }
+  } catch (e) {}
+
+  window.addEventListener('message', function(event) {
+    if (!event.data || typeof event.data !== 'object') return;
+
+    // Write data to port 5173's localStorage
+    if (event.data.type === 'DAR_SYNC_SET') {
+      try {
+        var key = event.data.key;
+        var value = event.data.value;
+        if (key && value !== undefined) {
+          localStorage.setItem(key, typeof value === 'string' ? value : JSON.stringify(value));
+          // Notify any listening components on 5173
+          window.dispatchEvent(new CustomEvent('dar_products_updated'));
+          window.dispatchEvent(new CustomEvent('dar_settings_updated'));
+        }
+      } catch (err) {
+        console.warn('[SyncBridge] Write failed:', err);
+      }
+    }
+
+    // Read data from port 5173's localStorage
+    if (event.data.type === 'DAR_SYNC_GET') {
+      try {
+        var reqKey = event.data.key;
+        var storedVal = localStorage.getItem(reqKey);
+        if (event.source) {
+          event.source.postMessage({
+            type: 'DAR_SYNC_GET_REPLY',
+            key: reqKey,
+            value: storedVal
+          }, '*');
+        }
+      } catch (err) {
+        console.warn('[SyncBridge] Read failed:', err);
+      }
+    }
+  });
+})();
+</script>
+</body>
+</html>
